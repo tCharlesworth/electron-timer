@@ -1,11 +1,14 @@
 const electron = require('electron');
-
+const MainWindow = require('./mainWindow');
+const IPCCalls = require('./ipcCalls');
 
 const { app } = electron;
 
 let mainWindow;
 
 function LaunchApplication() {
+  IPCCalls.SetupIPCMain();
+
   // Should launch setup with the main window?
   CreateMainWindow();
 }

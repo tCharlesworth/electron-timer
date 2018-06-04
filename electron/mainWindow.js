@@ -7,8 +7,8 @@ const MAIN_PATH = "build/main.html";
 class MainWindow extends BrowserWindow {
   constructor() {
     super({
-      width: 1200,
-      height: 800,
+      width: 250,
+      height: 400,
       webPreferences: { backgroundThrottling: false }
     });
     this.loadURL(`file://${__dirname}/../${MAIN_PATH}`);

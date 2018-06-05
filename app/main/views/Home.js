@@ -3,6 +3,7 @@ import moment from 'moment';
 
 import { TextField, Button } from '../../Shared/Components';
 import { TimerCard } from '../components';
+import { SaveTimers, ReadTimers } from '../../Shared/Utils/IPCCalls';
 
 class Home extends Component {
   constructor(props) {
@@ -10,8 +11,38 @@ class Home extends Component {
     this.state = {
       showCreate: false,
       newTimerName: '',
-      timers: [{title: 'Software', minutes: 95, startedAt: null}]
-    }
+      timers: []
+    };
+  }
+  componentDidMount() {
+    this.ReloadTimers();
+  }
+  ReloadTimers() {
+    let newTimers = ReadTimers();
+    // Load newTimers started at times into momentjs
+    newTimers = newTimers.map((timer) => {
+      return {
+        title: timer.title,
+        minutes: timer.minutes,
+        comments: timer.comments,
+        startedAt: timer.startedAt ? moment.utc(timer.startedAt) : null
+      }
+    });
+    this.setState({timers: newTimers});
+    console.log('Timers Loaded: ', newTimers.length);
+  }
+  saveState() {
+    let data;
+    data = this.state.timers.map((timer) => {
+      return {
+        title: timer.title,
+        minutes: timer.minutes,
+        comments: timer.comments,
+        startedAt: timer.startedAt ? timer.startedAt.utc().format() : null
+      };
+    });
+    SaveTimers(data);
+    console.log('Timers Saved: ', data.length);
   }
   toggleCreate() {
     this.setState({showCreate: !this.state.showCreate});
@@ -23,13 +54,14 @@ class Home extends Component {
     let newTimer = {
       title: name,
       minutes: 0,
-      startedAt: null
+      startedAt: null,
+      comments: ''
     };
     this.setState({
       timers: this.state.timers.concat([newTimer]),
       newTimerName: '',
       showCreate: false
-    });
+    }, this.saveState.bind(this));
   }
   handleValueChanged(prop, event) {
     this.setState({[prop]: event.target.value});
@@ -56,7 +88,7 @@ class Home extends Component {
     if(updated) {
       this.setState({
         timers: times.concat([updated])
-      });
+      }, this.saveState.bind(this));
     }
   }
   renderNewTimer() {
@@ -96,14 +128,16 @@ class Home extends Component {
                       title={timer.title}
                       totalTime={timer.minutes}
                       startedAt={timer.startedAt}
-                      onAction={this.handleTimerAction.bind(this)} />
+                      onAction={this.handleTimerAction.bind(this)}
+                      commentValue={timer.comments}
+                      onCommentChange={this.handle} />
           })}
         </div>
       </div>
     );
   }
 };
-
+// @HERE HANDLE COMMENT CHANGES
 const styles = {
   noMargin: {
     margin: 0

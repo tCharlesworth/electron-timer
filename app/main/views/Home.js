@@ -91,6 +91,22 @@ class Home extends Component {
       }, this.saveState.bind(this));
     }
   }
+  handleCommentChanged(timerTitle, event) {
+    let updated;
+    let timers = this.state.timers.filter((timer) => {
+      if(timer.title == timerTitle) {
+        updated = { ...timer, comments: event.target.value };
+        return false;
+      } else {
+        return true;
+      }
+    });
+    if (updated) {
+      this.setState({
+        timers: timers.concat([updated])
+      }, this.saveState.bind(this));
+    }
+  }
   renderNewTimer() {
     if(this.state.showCreate) {
       return (
@@ -130,7 +146,7 @@ class Home extends Component {
                       startedAt={timer.startedAt}
                       onAction={this.handleTimerAction.bind(this)}
                       commentValue={timer.comments}
-                      onCommentChange={this.handle} />
+                      onCommentChange={this.handleCommentChanged.bind(this, timer.title)} />
           })}
         </div>
       </div>

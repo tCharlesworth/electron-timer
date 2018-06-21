@@ -20,10 +20,15 @@ class Home extends Component {
   }
   ReloadTimers() {
     let newTimers = ReadTimers();
+    let alreadyActive = null;
     // Load newTimers started at times into momentjs
     newTimers = newTimers.map((timer) => {
+      if(timer.startedAt) {
+        alreadyActive = timer.title;
+      }
       return {
         title: timer.title,
+        comments: timer.comments,
         startedAt: timer.startedAt ? moment.utc(timer.startedAt) : null
       };
     });
@@ -40,7 +45,8 @@ class Home extends Component {
     });
     this.setState({
       timers: newTimers,
-      lineItems: lineItemsObj
+      lineItems: lineItemsObj,
+      activeTimer: alreadyActive
     });
     console.log('Timers Loaded: ', newTimers.length);
   }
@@ -49,6 +55,7 @@ class Home extends Component {
     dataTimers = this.state.timers.map((timer) => {
       return {
         title: timer.title,
+        comments: timer.comments,
         startedAt: timer.startedAt ? timer.startedAt.utc().format() : null
       };
     });
@@ -84,7 +91,6 @@ class Home extends Component {
       startedAt: null,
       comments: ''
     };
-    console.log("NOT FINISHED SUBMIT NEW")
     this.setState({timers: this.state.timers.concat([newTimer])}, this.saveState.bind(this));
     $('.ui.modal#new-timer-modal').modal('hide');
 
@@ -94,8 +100,37 @@ class Home extends Component {
   }
   handleTimerAction(timerName) {
     console.log("Action: ", timerName);
+    // Get timer
+    let timer = this.state.timers.filter((item) => {return item.title == timerName})[0];
+    if(timer.startedAt) {
+      console.log("Ending timer...");
+    } else {
+      console.log("Starting timer...");
+      timer.startedAt = moment();
+    }
+    this.setState({timers: this.state.timers.map((item) => {
+      if(item.title == timerName) {
+        return timer;
+      } else {
+        return item;
+      }
+    })}, this.saveState.bind(this));
   }
   handleCommentChanged(timerTitle, event) {
+    let updated;
+    let timers = this.state.timers.filter((timer) => {
+      if(timer.title == timerTitle) {
+        updated = { ...timer, comments: event.target.value };
+        return false;
+      } else {
+        return true;
+      }
+    });
+    if (updated) {
+      this.setState({
+        timers: timers.concat([updated])
+      }, this.saveState.bind(this));
+    }
   }
   handleDeleteTimer(timerName) {
     this.setState({timerToDelete: timerName});
@@ -192,8 +227,8 @@ class Home extends Component {
   };
   renderActiveTimer() {
     let timerData = this.state.timers.filter((item) => {return item.title == this.state.activeTimer})[0];
-    let commentValue = "comment",
-        actionTitle="action",
+    let commentValue = timerData.comments,
+        actionTitle= timerData.startedAt ? "Stop" : "Start",
         title=timerData.title;
     return (
         <div className="ui fluid card">
@@ -202,9 +237,9 @@ class Home extends Component {
               <div className="ui statistic">
                   <div className="value">{/*this.minutesToTime(totalTime)*/}</div>
               </div>
-              <TextArea title="Comments" onChange={()=>{}} value={commentValue}/>
+              <TextArea title="Comments" onChange={this.handleCommentChanged.bind(this, title)} value={commentValue}/>
               <br/>
-              <div className="ui bottom attached button" onClick={()=>{}}>{actionTitle}</div>
+              <div className="ui bottom attached button" onClick={this.handleTimerAction.bind(this, title)}>{actionTitle}</div>
           </div>
       </div>
     );
@@ -221,7 +256,7 @@ const styles = {
   },
   timerLineItem: {
     border: 'thin solid grey',
-    padding: '4px 10px',
+    padding: '10px 10px',
     margin: 8,
     borderRadius: 3
   }

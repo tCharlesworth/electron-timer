@@ -1,17 +1,18 @@
 import React, { Component } from 'react';
 import moment from 'moment';
 
-import { TextField, Button } from '../../Shared/Components';
-import { TimerCard } from '../components';
-import { SaveTimers, ReadTimers } from '../../Shared/Utils/IPCCalls';
+import { TextField, Button, TextArea } from '../../Shared/Components';
+import { SaveTimers, ReadTimers, ReadLineItems, SaveLineItems } from '../../Shared/Utils/IPCCalls';
 
 class Home extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      showCreate: false,
       newTimerName: '',
-      timers: []
+      timers: [],
+      lineItems: {},
+      activeTimer: null,
+      timerToDelete: null
     };
   }
   componentDidMount() {
@@ -23,29 +24,56 @@ class Home extends Component {
     newTimers = newTimers.map((timer) => {
       return {
         title: timer.title,
-        minutes: timer.minutes,
-        comments: timer.comments,
         startedAt: timer.startedAt ? moment.utc(timer.startedAt) : null
-      }
+      };
     });
-    this.setState({timers: newTimers});
+    // Load Line Items into data object with dates as props
+    let lineItems = ReadLineItems();
+    let lineItemsObj = {};
+    lineItems.forEach((item) => {
+      let data = {
+        minutes: item.minutes,
+        comments: item.comments,
+        date: moment(item.date, 'MM/DD/YYYY')
+      };
+      lineItemsObj[item.date] = data;
+    });
+    this.setState({
+      timers: newTimers,
+      lineItems: lineItemsObj
+    });
     console.log('Timers Loaded: ', newTimers.length);
   }
   saveState() {
-    let data;
-    data = this.state.timers.map((timer) => {
+    let dataTimers;
+    dataTimers = this.state.timers.map((timer) => {
       return {
         title: timer.title,
-        minutes: timer.minutes,
-        comments: timer.comments,
         startedAt: timer.startedAt ? timer.startedAt.utc().format() : null
       };
     });
-    SaveTimers(data);
-    console.log('Timers Saved: ', data.length);
+    let dataLineItems = [];
+    let items = this.state.lineItems;
+    for(let prop in items) {
+      let item = items[prop];
+      dataLineItems.push({
+        minutes: item.minutes,
+        comments: item.comments,
+        date: item.date.format('MM/DD/YYYY')
+      });
+    }
+    SaveTimers(dataTimers);
+    console.log('Timers Saved: ', dataTimers.length);
+    SaveLineItems(dataLineItems);
+    console.log('Line Items Saved: ', dataLineItems.length);
   }
-  toggleCreate() {
-    this.setState({showCreate: !this.state.showCreate});
+  deleteTimer(timerName) {
+    this.setState({timers: this.state.timers.filter((item) => {return item.title != timerName})}, this.saveState.bind(this));
+  }
+  
+  ////////////////////////////////////
+  showNewTimer() {
+    $('.ui.modal#new-timer-modal').modal('show');
   }
   submitNewTimer(event) {
     event.preventDefault();
@@ -53,110 +81,149 @@ class Home extends Component {
     if(!name) { return; }
     let newTimer = {
       title: name,
-      minutes: 0,
       startedAt: null,
       comments: ''
     };
-    this.setState({
-      timers: this.state.timers.concat([newTimer]),
-      newTimerName: '',
-      showCreate: false
-    }, this.saveState.bind(this));
+    console.log("NOT FINISHED SUBMIT NEW")
+    this.setState({timers: this.state.timers.concat([newTimer])}, this.saveState.bind(this));
+    $('.ui.modal#new-timer-modal').modal('hide');
+
   }
   handleValueChanged(prop, event) {
     this.setState({[prop]: event.target.value});
   }
   handleTimerAction(timerName) {
     console.log("Action: ", timerName);
-    let updated;
-    let times = this.state.timers.filter((timer) => {
-      if(timer.title == timerName) {
-        // HANDLE
-        if(timer.startedAt) {
-          console.log("End Timer");
-          let minutesToAdd = moment().diff(timer.startedAt, 'minutes');
-          if(minutesToAdd < 1) { minutesToAdd = 1 }
-          updated = { title: timer.title, startedAt: null, minutes: timer.minutes+minutesToAdd };
-        } else {
-          console.log("Start Timer");
-          updated = {...timer, startedAt: moment()}
-        }
-        return false;
-      }
-      return true;
-    });
-    if(updated) {
-      this.setState({
-        timers: times.concat([updated])
-      }, this.saveState.bind(this));
-    }
   }
   handleCommentChanged(timerTitle, event) {
-    let updated;
-    let timers = this.state.timers.filter((timer) => {
-      if(timer.title == timerTitle) {
-        updated = { ...timer, comments: event.target.value };
-        return false;
-      } else {
-        return true;
-      }
-    });
-    if (updated) {
-      this.setState({
-        timers: timers.concat([updated])
-      }, this.saveState.bind(this));
-    }
   }
-  renderNewTimer() {
-    if(this.state.showCreate) {
-      return (
-        <div className="ui segment">
+  handleDeleteTimer(timerName) {
+    this.setState({timerToDelete: timerName});
+    $('.ui.modal#delete-timer-modal').modal({
+      onApprove: this.deleteTimer.bind(this, timerName)
+    }).modal('show');
+  }
+  handleSelectTimer(timerName) {
+    this.setState({activeTimer: timerName});
+  }
+  renderConfirmDeleteTimer() {
+    return (
+      <div className="ui mini modal" id="delete-timer-modal">
+        <div className="header">Delete Timer</div>
+        <div className="content">
+          <p>Are you sure you want to delete {this.state.timerToDelete}?</p>
+        </div>
+        <div className="actions">
+          <div className="ui approve button">Delete</div>
+          <div className="ui cancel button">Cancel</div>
+        </div>
+      </div>
+    );
+  }
+  renderNewTimerModal() {
+    return (
+      <div className="ui modal" id="new-timer-modal">
+        <div className="content">
           <form onSubmit={this.submitNewTimer.bind(this)}>
             <h4>New Timer</h4>
             <TextField title="Name" value={this.state.newTimerName} onChange={this.handleValueChanged.bind(this, 'newTimerName')} />
             <Button type="submit" title="Create" />
           </form>
         </div>
-      )
+      </div>
+    );
+  }
+  renderTimerList() {
+    if(this.state.timers && this.state.timers.length > 0) {
+      return (
+        <div>
+          {this.state.timers.map((item, idx) => {
+            return (
+              <div key={idx} style={styles.timerLineItem}>
+                {item.title}
+                <div className="ui grid">
+                  <div className="column eight wide">
+                    <Button title="Select" onClick={this.handleSelectTimer.bind(this, item.title)} />
+                  </div>
+                  <div className="column eight wide">
+                    <Button title="Delete" onClick={this.handleDeleteTimer.bind(this, item.title)} />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
     } else {
-      return null;
+      return (
+        <div>
+            <p style={{textAlign: 'center', marginTop: 20}}><i className="outline plus square icon" onClick={this.showNewTimer.bind(this)}></i> You don't have any timers.</p>
+        </div>
+      );
     }
   }
   render() {
     return (
-      <div className="page-wrapper">
-        <br/>
-        <div className="ui clearing segment">
+      <div>
+        {this.renderNewTimerModal()}
+        {this.renderConfirmDeleteTimer()}
+        <div style={styles.header}>
           <div className="ui right floated header" style={styles.noMargin}>
-            <div className="cursor-hover" onClick={this.toggleCreate.bind(this)}>
-              <i className="small square outline plus icon"></i>
+            <div className="cursor-hover">
+              <i className="cogs icon"></i>
             </div>
           </div>
           <div className="ui left floated header" style={styles.noMargin}>Timers</div>
+          <div style={{clear: 'both'}}></div>
         </div>
-        {this.renderNewTimer()}
-        <br/>
-        <br/>
-        <div className="ui cards">
-          {this.state.timers.map((timer, idx) => {
-            return <TimerCard
-                      key={idx}
-                      title={timer.title}
-                      totalTime={timer.minutes}
-                      startedAt={timer.startedAt}
-                      onAction={this.handleTimerAction.bind(this)}
-                      commentValue={timer.comments}
-                      onCommentChange={this.handleCommentChanged.bind(this, timer.title)} />
-          })}
+        <div className="page-wrapper">
+          <br/>
+          <br/>
+          {/* Render Active Timer */}
+          {this.state.activeTimer ? this.renderActiveTimer() : this.renderTimerList()}
         </div>
       </div>
     );
   }
+  minutesToTime (minutes) {
+      let hours = minutes / 60 | 0;
+      minutes = minutes % 60 | 0;
+      return moment.utc().hours(hours).minutes(minutes).format("HH:mm");
+  };
+  renderActiveTimer() {
+    let timerData = this.state.timers.filter((item) => {return item.title == this.state.activeTimer})[0];
+    let commentValue = "comment",
+        actionTitle="action",
+        title=timerData.title;
+    return (
+        <div className="ui fluid card">
+          <div className="content">
+              <div className="header">{title}</div>
+              <div className="ui statistic">
+                  <div className="value">{/*this.minutesToTime(totalTime)*/}</div>
+              </div>
+              <TextArea title="Comments" onChange={()=>{}} value={commentValue}/>
+              <br/>
+              <div className="ui bottom attached button" onClick={()=>{}}>{actionTitle}</div>
+          </div>
+      </div>
+    );
+  }
 };
-// @HERE HANDLE COMMENT CHANGES
+
 const styles = {
   noMargin: {
     margin: 0
+  },
+  header: {
+    borderBottom: 'thin solid grey',
+    padding: 20
+  },
+  timerLineItem: {
+    border: 'thin solid grey',
+    padding: '4px 10px',
+    margin: 8,
+    borderRadius: 3
   }
 };
 
